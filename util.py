@@ -32,18 +32,37 @@ def get_noaa_realtime_data(mag_url: str, plasma_url: str) -> pd.DataFrame:
     return df.dropna()
 
 
-def get_city_weather_forecast(lat: float, lon: float) -> int:
+def get_city_weather_history(city: str, start_date: str, end_date: str, latitude: float, longitude: float) -> pd.DataFrame:
     """
-    Fetches the current cloud cover percentage for a specific coordinate.
+    Fetches historical cloud cover data for a specific city and coordinate range.
+    Uses Open-Meteo Archive API for historical weather data.
+    Returns a DataFrame with columns: date, cloud_cover_mean
     """
     params = {
-        "latitude": lat,
-        "longitude": lon,
-        "current": "cloud_cover",
+        "latitude": latitude,
+        "longitude": longitude,
+        "start_date": start_date,
+        "end_date": end_date,
+        "daily": "cloud_cover_mean",
         "timezone": "auto"
     }
-    response = requests.get("https://api.open-meteo.com/v1/forecast", params=params).json()
-    return response['current']['cloud_cover']
+    
+    # Use the archive API for historical data
+    response = requests.get("https://archive-api.open-meteo.com/v1/archive", params=params)
+    
+    if response.status_code != 200:
+        raise Exception(f"Failed to fetch weather data for {city}: {response.status_code}")
+    
+    data = response.json()
+    
+    # Extract daily data
+    daily_data = data['daily']
+    df = pd.DataFrame({
+        'date': daily_data['time'],
+        'cloud_cover_mean': daily_data['cloud_cover_mean']
+    })
+    
+    return df
 
 
 def aurora_visibility_logic(pred_kp: float, kp_threshold: float, cloud_cover: int) -> str:
