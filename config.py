@@ -29,6 +29,7 @@ class HopsworksSettings(BaseSettings):
     # API Endpoints
     NOAA_MAG_URL: str = "https://services.swpc.noaa.gov/products/solar-wind/mag-1-day.json"
     NOAA_PLASMA_URL: str = "https://services.swpc.noaa.gov/products/solar-wind/plasma-1-day.json"
+    KP_INDEX_URL: str = "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
     OPEN_METEO_URL: str = "https://api.open-meteo.com/v1/forecast"
 
     # Threshold for 'Clear Skies'
