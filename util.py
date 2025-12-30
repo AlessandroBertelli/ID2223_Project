@@ -1,6 +1,9 @@
 import pandas as pd
 import requests
 import datetime
+import spacepy.omni as omni
+import spacepy.time as spt
+import spacepy.toolbox as tb
 from typing import Tuple
 
 
@@ -64,4 +67,7 @@ def get_historical_omni_data(start_date: str, end_date: str):
     # Note: Requires spacepy installation and local config
     # In practice, you would use: from spacepy import omindata
     print(f"Fetching historical data from {start_date} to {end_date}...")
-    pass
+
+    return 0
+    print("carita linda")
+    return data
