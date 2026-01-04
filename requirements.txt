@@ -1,0 +1,11 @@
+
+hopsworks
+pandas
+joblib
+matplotlib
+requests
+spacepy
+cdasws
+pydantic-settings
+ipython
+nbconvert
