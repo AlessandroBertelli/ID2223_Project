@@ -1,5 +1,7 @@
-
-hopsworks
+hopsworks[python,great-expectations]
+pyarrow
+confluent-kafka
+fastavro
 pandas
 joblib
 matplotlib
@@ -9,4 +11,3 @@ cdasws
 pydantic-settings
 ipython
 nbconvert
-pyarrow
