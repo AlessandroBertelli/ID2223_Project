@@ -81,7 +81,7 @@ def get_city_weather_history(city: str, start_date: str, end_date: str, latitude
         "longitude": longitude,
         "start_date": start_date,
         "end_date": end_date,
-        "daily": "cloud_cover_mean",
+        "hourly": "cloud_cover",
         "timezone": "auto"
     }
     
@@ -93,11 +93,11 @@ def get_city_weather_history(city: str, start_date: str, end_date: str, latitude
     
     data = response.json()
     
-    # Extract daily data
-    daily_data = data['daily']
+    # Extract hourly data
+    hourly_data = data['hourly']
     df = pd.DataFrame({
-        'date': daily_data['time'],
-        'cloud_cover_mean': daily_data['cloud_cover_mean']
+        'date': hourly_data['time'],
+        'cloud_cover': hourly_data['cloud_cover']
     })
     
     return df
