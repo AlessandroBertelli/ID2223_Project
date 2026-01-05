@@ -30,6 +30,25 @@ jobs:
           pip install ipython nbconvert
           pip install -r requirements.txt
 
+      - name: verify environment variables
+        env:
+          HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
+          HOPSWORKS_PROJECT: ${{ secrets.HOPSWORKS_PROJECT }}
+        run: |
+          echo "Checking if secrets are set..."
+          if [ -z "$HOPSWORKS_PROJECT" ]; then
+            echo "ERROR: HOPSWORKS_PROJECT is empty or not set!"
+            exit 1
+          else
+            echo "HOPSWORKS_PROJECT is set (length: ${#HOPSWORKS_PROJECT} chars)"
+          fi
+          if [ -z "$HOPSWORKS_API_KEY" ]; then
+            echo "ERROR: HOPSWORKS_API_KEY is empty or not set!"
+            exit 1
+          else
+            echo "HOPSWORKS_API_KEY is set (length: ${#HOPSWORKS_API_KEY} chars)"
+          fi
+          
       - name: execute aurora pipelines
         env:
           HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
