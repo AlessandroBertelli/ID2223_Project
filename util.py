@@ -88,6 +88,103 @@ def aggregate_solar_wind_3h(
     return result
 
 
+def get_noaa_realtime_data(mag_url: str, plasma_url: str, kp_url: str) -> pd.DataFrame:
+    """
+    Fetches NOAA data and aligns everything to 3-hour windows
+    for physically correct Kp training.
+    """
+
+    # -----------------------------------------
+    # Fetch Magnetometer data (1-min) and aggregate to 1H
+    # -----------------------------------------
+    m_res = requests.get(mag_url).json()
+    df_mag = pd.DataFrame(m_res[1:], columns=m_res[0])
+    df_mag['time_tag'] = pd.to_datetime(df_mag['time_tag'], utc=True)
+    # df_mag = df_mag.set_index('time_tag')
+
+    # Convert to numeric (not the time tag)
+    for col in df_mag.columns:
+        if col != 'time_tag':
+            df_mag[col] = pd.to_numeric(df_mag[col], errors='coerce')
+
+    # Rename the columns for coherence
+    df_mag.rename(columns={'time_tag': 'date_and_time'}, inplace=True)
+
+    # Round to nearest hour
+    df_mag['rounded_time'] = df_mag['date_and_time'].dt.round('H')
+    # Calculate absolute difference in seconds
+    df_mag['abs_diff'] = (df_mag['date_and_time'] - df_mag['rounded_time']).abs()
+    # Keep only the row closest to the o'clock for each rounded_time
+    df_mag = df_mag.loc[df_mag.groupby('rounded_time')['abs_diff'].idxmin()]
+    df_mag = df_mag.drop(columns=['date_and_time'])
+    # Rename rounded_time to date_and_time for downstream compatibility
+    df_mag = df_mag.rename(columns={'rounded_time': 'date_and_time'})
+    df_mag = df_mag.drop(columns=['abs_diff'])
+    # Reset index
+    df_mag = df_mag.reset_index(drop=True)
+    
+    print("Raw Magnetometer data:\n", df_mag)
+
+    # -----------------------------------------
+    # Fetch Plasma data (1-min) and aggregate to 1H
+    # -----------------------------------------
+    p_res = requests.get(plasma_url).json()
+    df_plasma = pd.DataFrame(p_res[1:], columns=p_res[0])
+    df_plasma['time_tag'] = pd.to_datetime(df_plasma['time_tag'], utc=True)
+    #df_plasma = df_plasma.set_index('time_tag')
+
+    # Convert to numeric
+    for col in df_plasma.columns:
+        if col != 'time_tag':
+            df_plasma[col] = pd.to_numeric(df_plasma[col], errors='coerce')
+
+    # Rename the columns for coherence
+    df_plasma.rename(columns={'time_tag': 'date_and_time'}, inplace=True)
+
+    # Round to nearest hour
+    df_plasma['rounded_time'] = df_plasma['date_and_time'].dt.round('H')
+    # Calculate absolute difference in seconds
+    df_plasma['abs_diff'] = (df_plasma['date_and_time'] - df_plasma['rounded_time']).abs()
+    # Keep only the row closest to the o'clock for each rounded_time
+    df_plasma = df_plasma.loc[df_plasma.groupby('rounded_time')['abs_diff'].idxmin()]
+    df_plasma = df_plasma.drop(columns=['date_and_time'])
+    # Rename rounded_time to date_and_time for downstream compatibility
+    df_plasma = df_plasma.rename(columns={'rounded_time': 'date_and_time'})
+    df_plasma = df_plasma.drop(columns=['abs_diff'])
+    # Reset index
+    df_plasma = df_plasma.reset_index(drop=True)
+
+    print("Raw Plasma data:\n", df_plasma)
+
+    # -----------------------------------------
+    # Fetch Kp index (3-hour official)
+    # -----------------------------------------
+    kp_res = requests.get(kp_url).json()
+    df_kp = pd.DataFrame(kp_res[1:], columns=kp_res[0])
+    df_kp['time_tag'] = pd.to_datetime(df_kp['time_tag'], utc=True)
+    #df_kp = df_kp.set_index('time_tag')
+
+    df_kp['Kp'] = pd.to_numeric(df_kp['Kp'], errors='coerce')
+
+    # Rename the columns for coherence
+    df_kp.rename(columns={'time_tag': 'date_and_time'}, inplace=True)
+    df_kp.rename(columns={'Kp': 'kp_index'}, inplace=True)
+
+    print("Raw Kp index data:\n", df_kp)
+
+    # -----------------------------------------
+    # Data merging
+    # -----------------------------------------
+    # Merge on timestamp magnetometer and plasma
+    df_temp = pd.merge(df_mag, df_plasma, on='date_and_time')
+    
+    # Round timestamps to nearest hour to match with df_kp (which is on the hour)
+    # df_temp['date_and_time'] = df_temp['date_and_time'].dt.round('H')
+    
+    df = pd.merge(df_temp, df_kp, on='date_and_time', how='left')
+
+    return df
+
 def get_noaa_realtime_data_old(mag_url: str, plasma_url: str, kp_url: str) -> pd.DataFrame:
     """
     Fetches 1-minute solar wind data from NOAA SWPC and merges Magnetometer and Plasma data.
@@ -150,7 +247,7 @@ def get_noaa_realtime_data_old(mag_url: str, plasma_url: str, kp_url: str) -> pd
 
     return df
 
-def get_noaa_training_data_3h(mag_url: str, plasma_url: str, kp_url: str) -> pd.DataFrame:
+def get_noaa_training_data_3h_old(mag_url: str, plasma_url: str, kp_url: str) -> pd.DataFrame:
     """
     Fetches NOAA data and aligns everything to 3-hour windows
     for physically correct Kp training.
@@ -191,6 +288,7 @@ def get_noaa_training_data_3h(mag_url: str, plasma_url: str, kp_url: str) -> pd.
 
     # -----------------------------------------
     # 3H AGGREGATION (CORE STEP)
+    # Matches the logic in aggregate_solar_wind_3h for consistency
     # -----------------------------------------
 
     # Magnetometer: statistics over 3h
@@ -218,20 +316,66 @@ def get_noaa_training_data_3h(mag_url: str, plasma_url: str, kp_url: str) -> pd.
     ]
 
     # -----------------------------------------
+    # Validate complete 3H windows
+    # Only keep windows that have enough data points
+    # -----------------------------------------
+    
+    # Count samples per 3H window for magnetometer and plasma
+    mag_counts = df_mag.resample('3H').count().iloc[:, 0]  # Count from first column
+    plasma_counts = df_plasma.resample('3H').count().iloc[:, 0]
+    
+    # For 1-minute data, a complete 3H window should have ~180 samples
+    # We use a threshold of at least 90 samples (50%) to be considered valid
+    # For hourly data, we expect 3 samples per window, threshold of 2
+    min_samples_1min = 90  # 50% of 180 samples for 1-min data
+    min_samples_hourly = 2  # At least 2 out of 3 for hourly data
+    
+    # Determine data resolution and set appropriate threshold
+    if len(df_mag) > 0:
+        time_diff = df_mag.index.to_series().diff().median()
+        if time_diff <= pd.Timedelta(minutes=5):
+            min_samples = min_samples_1min
+        else:
+            min_samples = min_samples_hourly
+    else:
+        min_samples = min_samples_hourly
+    
+    valid_mag_windows = mag_counts[mag_counts >= min_samples].index
+    valid_plasma_windows = plasma_counts[plasma_counts >= min_samples].index
+    
+    # Keep only windows that are valid for both mag and plasma
+    valid_windows = valid_mag_windows.intersection(valid_plasma_windows)
+
+    # -----------------------------------------
     # Merge everything on 3H windows
     # -----------------------------------------
     df = df_mag_3h.join(df_plasma_3h, how='inner')
-    df = df.join(df_kp[['Kp']], how='inner')
+    
+    # Rename Kp to kp_index for consistency with historical data
+    df_kp = df_kp.rename(columns={'Kp': 'kp_index'})
+    df = df.join(df_kp[['kp_index']], how='inner')
 
-    # Drop incomplete windows
+    # Filter to only valid (complete) windows
+    df = df[df.index.isin(valid_windows)]
+
+    # Drop any remaining incomplete windows (NaN values)
     df = df.dropna()
 
     # -----------------------------------------
-    # Optional: shift timestamp to window center
+    # Create window_start and window_end columns
+    # (matching aggregate_solar_wind_3h output format)
     # -----------------------------------------
-    df.index = df.index + pd.Timedelta(hours=1.5)
+    df = df.reset_index()
+    df['window_start'] = df['time_tag']
+    df['window_end'] = df['time_tag'] + pd.Timedelta(hours=3)
+    df = df.drop(columns=['time_tag'])
 
-    return df.reset_index().rename(columns={'index': 'time'})
+    # Reorder columns to have time columns first
+    time_cols = ['window_start', 'window_end']
+    other_cols = [c for c in df.columns if c not in time_cols]
+    df = df[time_cols + other_cols]
+
+    return df
 
 
 
