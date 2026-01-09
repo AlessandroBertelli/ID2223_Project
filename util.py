@@ -7,6 +7,41 @@ import spacepy.toolbox as tb
 from typing import Tuple, List
 
 
+def lag_features(
+    df: pd.DataFrame,
+    feature_cols: List[str],
+    lags: List[int],
+    time_col: str = 'date_and_time'
+) -> pd.DataFrame:
+    """
+    Creates lagged features for the specified columns in the DataFrame.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input DataFrame with time series data.
+    feature_cols : List[str]
+        List of column names to create lagged features for.
+    lags : List[int]
+        List of lag periods (in hours) to create.
+    time_col : str
+        Name of the datetime column (default: 'date_and_time')
+    
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with original and lagged features.
+    """
+    df = df.copy()
+    
+    for col in feature_cols:
+        for lag in lags:
+            df[f"{col}_lag_{lag}"] = df[col].shift(lag)
+    df.dropna().reset_index(drop=True)
+    
+    return df
+
+
 def aggregate_solar_wind_3h(
     df: pd.DataFrame,
     time_col: str = 'date_and_time',
@@ -88,7 +123,7 @@ def aggregate_solar_wind_3h(
     return result
 
 
-def get_noaa_realtime_data(mag_url: str, plasma_url: str, kp_url: str) -> pd.DataFrame:
+def get_noaa_realtime_hourly_data(mag_url: str, plasma_url: str, kp_url: str) -> pd.DataFrame:
     """
     Fetches NOAA data and aligns everything to 3-hour windows
     for physically correct Kp training.
@@ -485,3 +520,4 @@ def get_historical_omni_data(start_date: str, end_date: str):
     return 0
     print("carita linda")
     return data
+
