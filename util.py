@@ -495,7 +495,7 @@ def get_city_weather_forecast(lat: float, lon: float, hours_ahead: int) -> int:
     return df
 
 
-def aurora_visibility_logic(pred_kp: float, kp_threshold: float, cloud_cover: int) -> str:
+def aurora_visibility_logic(pred_kp: float, kp_threshold: float, cloud_cover: float) -> str:
     """
     Returns the Actionable status for a city.
     """
