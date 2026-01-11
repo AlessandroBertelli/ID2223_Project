@@ -96,6 +96,9 @@ We evaluate performance across different latitudes to test the model's sensitivi
 | **Luleå** | ~65.5° N | **Sub-Arctic:** Requires moderate activity. |
 | **Stockholm** | ~59.3° N | **Mid-Latitude:** Requires strong geomagnetic storms (High Kp). |
 
+
+![Dashboard](aurora_dashboard.png)
+
 ---
 
 ## 📂 Repository Structure
