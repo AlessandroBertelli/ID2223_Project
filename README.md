@@ -51,7 +51,7 @@ We construct a historical dataset by aggregating archives from NASA and NOAA.
 * **Features:**
     * **Magnetic Field Components:** $B_x$, $B_y$, $B_z$ (GSE/GSM coordinates).
     * **Plasma Parameters:** Proton Density, Solar Wind Speed, Temperature.
-* **Target Variable:** Kp Index (Planetary K-index).
+* **Target Variable:** Kp Index (Planetary K-index).    
 
 ### 2. Machine Learning Pipeline (Dual-Horizon Forecasting)
 We utilize **Random Forest Regressors** to map raw solar wind parameters to geomagnetic activity levels.
