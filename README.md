@@ -40,30 +40,41 @@ Our system issues a **"Go" signal** only when *both* conditions are satisfied si
 
 ## ⚙️ Technical Architecture
 
-The project consists of two main workflows: **Historical Training** and **Real-Time Inference**.
+The project implements a hybrid MLOps pipeline combining batch processing for historical training and real-time streaming for live inference.
+
+![MLOps Architecture Diagram](architecture_image.png)
+*(Please update this path to the location of your generated diagram image)*
 
 ### 1. Data Sources & Aggregation
 We construct a historical dataset by aggregating archives from NASA and NOAA.
-* **Satellites:** ACE (Advanced Composition Explorer) and DSCOVR (Deep Space Climate Observatory).
+* **Satellites:** ACE (Advanced Composition Explorer) and DSCOVR (Deep Space Climate Observatory) located at the L1 Lagrange point.
 * **Features:**
     * **Magnetic Field Components:** $B_x$, $B_y$, $B_z$ (GSE/GSM coordinates).
     * **Plasma Parameters:** Proton Density, Solar Wind Speed, Temperature.
-* **Target Variable:** Kp Index (Planetary K-index) or Disturbance Storm Time ($Dst$).
+* **Target Variable:** Kp Index (Planetary K-index).    
 
-### 2. Machine Learning Model
-We utilize a **Random Forest Regressor** to map the raw solar wind parameters to the geomagnetic activity level.
-* **Preprocessing:** Cleaning missing satellite logs, time-series alignment, and normalization.
-* **Training:** The model learns the lag between solar wind measurement (at the L1 Lagrange point) and the impact on Earth's magnetosphere.
+### 2. Machine Learning Pipeline (Dual-Horizon Forecasting)
+We utilize **Random Forest Regressors** to map raw solar wind parameters to geomagnetic activity levels.
+
+Because the Kp index is inherently calculated as a **3-hour average** of geomagnetic disturbance, single-point predictions are insufficient. To provide actionable insights, our system employs two distinct models trained for different forecast horizons:
+
+* **The 3-Hour Model (Immediate Forecast):**
+    * **Goal:** Predicts the Kp index for the immediate next 3-hour window.
+    * **Motivation:** This model is highly reactive to the solar wind currently detected at the L1 satellite point (which takes roughly 30-90 minutes to reach Earth). It offers the highest confidence for imminent activity.
+* **The 6-Hour Model (Tactical Forecast):**
+    * **Goal:** Predicts the Kp index looking two windows (6 hours) ahead.
+    * **Motivation:** While slightly less capable of reacting to sudden, immediate shifts than the 3h model, the 6-hour horizon is crucial for user **actionability**. It provides aurora hunters sufficient lead time to travel out of light-polluted city centers before the predicted event begins.
 
 ### 3. The Inference Pipeline
 During live operation, the system follows this logic flow:
 
 1.  **Fetch Live Space Data:** Query the NOAA SWPC API for real-time solar wind stats.
-2.  **Predict Activity:** The ML model estimates the current/upcoming Kp index.
-3.  **Fetch Local Weather:** Query the **Open-Meteo API** for cloud cover percentages in Stockholm, Luleå, and Kiruna.
+2.  **Predict Activity:** Run both the 3h and 6h ML models to estimate future Kp indices.
+3.  **Fetch Local Weather:** Query the **Open-Meteo API** for cloud cover percentages in Stockholm, Luleå, and Kiruna corresponding to those forecast times.
 4.  **Decision Logic:**
     ```python
-    if (Predicted_Kp >= Kp_Threshold) and (Cloud_Cover <= Cloud_Threshold):
+    # Simplified logic example
+    if (Predicted_Kp_predict >= Kp_Threshold) and (Cloud_Cover <= Cloud_Threshold):
         return "VISIBLE_EVENT"
     else:
         return "NO_EVENT"
@@ -90,11 +101,12 @@ We evaluate performance across different latitudes to test the model's sensitivi
 │   ├── raw/                  # Raw logs from NASA/NOAA archives
 │   └── processed/            # Cleaned time-series data ready for training
 ├── models/
-│   └── rf_regressor.pkl      # Serialized trained model
+│   ├── rf_regressor_3h.pkl   # Serialized 3-hour forecast model
+│   └── rf_regressor_6h.pkl   # Serialized 6-hour forecast model
 ├── src/
 │   ├── data_ingestion.py     # Scripts to fetch ACE/DSCOVR data
 │   ├── preprocessing.py      # Feature engineering and time alignment
-│   ├── train.py              # Model training logic
+│   ├── train.py              # Model training logic for both horizons
 │   ├── weather_api.py        # Integration with Open-Meteo
 │   └── inference.py          # Main pipeline for real-time predictions
 ├── notebooks/                # EDA and prototyping
