@@ -60,6 +60,16 @@ jobs:
           # 2. Run Inference to predict Kp and determine city-specific "GO" signals
           ipython 4_aurora_batch_inference.ipynb
 
+
+
+
+
+
+
+
+
+
+
       - name: publish aurora dashboard
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
