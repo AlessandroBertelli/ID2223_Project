@@ -555,34 +555,75 @@ def get_city_weather_today(lat: float, lon: float) -> int:
     }
     #return response['current']['cloud_cover']
 
-def get_city_weather_forecast(lat: float, lon: float, hours_ahead: int) -> int:
+def get_city_weather_forecast(lat: float, lon: float, hours_ahead: int) -> pd.DataFrame:
     """
     Get the forecasted cloud cover percentage for a specific coordinate and number of hours ahead.
-
+    
+    Parameters
+    ----------
+    lat : float
+        Latitude of the city.
+    lon : float
+        Longitude of the city.
+    hours_ahead : int
+        Number of hours ahead to forecast.
+    
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with 'time' (UTC) and 'cloud_cover' columns.
     """
     params = {
         "latitude": lat,
         "longitude": lon,
         "hourly": "cloud_cover",
         "forecast_hours": hours_ahead,
-        "timezone": "auto"
+        "timezone": "UTC"  # Use UTC for consistent time matching
     }
     response = requests.get("https://api.open-meteo.com/v1/forecast", params=params).json()
 
     # Parse the hourly forecast data
     hourly_data = response['hourly']
     df = pd.DataFrame({
-        'time': pd.to_datetime(hourly_data['time']),
+        'time': pd.to_datetime(hourly_data['time'], utc=True),
         'cloud_cover': hourly_data['cloud_cover']
     })
 
-    # # Get the forecast for the specified hour ahead
-    # now = pd.Timestamp.now(tz='UTC').tz_localize(None)
-    # target_time = now + pd.Timedelta(hours=hours_ahead)
-    # closest_forecast = df.iloc[(df['time'] - target_time).abs().argsort()[0]]
-
-    #return int(closest_forecast['cloud_cover'])
     return df
+
+
+def get_cloud_cover_for_window(cloud_cover_df: pd.DataFrame, window_start: pd.Timestamp, window_end: pd.Timestamp) -> float:
+    """
+    Calculate the mean cloud cover for a specific time window.
+    
+    Parameters
+    ----------
+    cloud_cover_df : pd.DataFrame
+        DataFrame with 'time' and 'cloud_cover' columns (from get_city_weather_forecast).
+    window_start : pd.Timestamp
+        Start of the prediction window (UTC).
+    window_end : pd.Timestamp
+        End of the prediction window (UTC).
+    
+    Returns
+    -------
+    float
+        Mean cloud cover percentage for the window, or NaN if no data available.
+    """
+    # Ensure timestamps are timezone-aware (UTC)
+    if window_start.tzinfo is None:
+        window_start = window_start.tz_localize('UTC')
+    if window_end.tzinfo is None:
+        window_end = window_end.tz_localize('UTC')
+    
+    # Filter cloud cover data for the window
+    mask = (cloud_cover_df['time'] >= window_start) & (cloud_cover_df['time'] < window_end)
+    window_data = cloud_cover_df[mask]
+    
+    if len(window_data) == 0:
+        return float('nan')
+    
+    return window_data['cloud_cover'].mean()
 
 
 def aurora_visibility_logic(pred_kp: float, kp_threshold: float, cloud_cover: float) -> str:
