@@ -43,7 +43,6 @@ Our system issues a **"Go" signal** only when *both* conditions are satisfied si
 The project implements a hybrid MLOps pipeline combining batch processing for historical training and real-time streaming for live inference.
 
 ![MLOps Architecture Diagram](architecture_image.png)
-*(Please update this path to the location of your generated diagram image)*
 
 ### 1. Data Sources & Aggregation
 We construct a historical dataset by aggregating archives from NASA and NOAA.
