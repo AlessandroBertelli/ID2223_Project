@@ -11,33 +11,95 @@ def lag_features(
     df: pd.DataFrame,
     feature_cols: List[str],
     lags: List[int],
-    time_col: str = 'date_and_time'
+    time_col: str = 'window_start',
+    time_end_col: str = 'window_end',
+    check_consecutive: bool = True,
+    forward: bool = False
 ) -> pd.DataFrame:
     """
     Creates lagged features for the specified columns in the DataFrame.
+    Validates that rows are consecutive in time before assigning lags.
     
     Parameters
     ----------
     df : pd.DataFrame
-        Input DataFrame with time series data.
+        Input DataFrame with time series data (must be sorted by time).
     feature_cols : List[str]
         List of column names to create lagged features for.
     lags : List[int]
-        List of lag periods (in hours) to create.
+        List of lag periods (number of time steps) to create.
     time_col : str
-        Name of the datetime column (default: 'date_and_time')
+        Name of the datetime column for window start (default: 'window_start')
+    time_end_col : str
+        Name of the datetime column for window end (default: 'window_end')
+    check_consecutive : bool
+        If True, only assign lagged values when rows are consecutive in time.
+        Non-consecutive lags will be set to NaN. (default: True)
+    forward : bool
+        If False (default), creates backward lags (past values): col_lag_1, col_lag_2, ...
+        If True, creates forward lags (future values): col_t_plus_1, col_t_plus_2, ...
     
     Returns
     -------
     pd.DataFrame
         DataFrame with original and lagged features.
+        
+    Examples
+    --------
+    # Backward lags (for input features - using past data)
+    df = lag_features(df, feature_cols=["speed", "density"], lags=[1, 2], forward=False)
+    # Creates: speed_lag_1, speed_lag_2, density_lag_1, density_lag_2
+    
+    # Forward lags (for targets - predicting future values)
+    df = lag_features(df, feature_cols=["kp_index"], lags=[1, 2], forward=True)
+    # Creates: kp_index_t_plus_1, kp_index_t_plus_2
     """
     df = df.copy()
     
+    # Ensure datetime format
+    if time_col in df.columns and time_end_col in df.columns:
+        df[time_col] = pd.to_datetime(df[time_col])
+        df[time_end_col] = pd.to_datetime(df[time_end_col])
+    
+    # Pre-compute consecutive masks for all needed lags
+    consecutive_masks = {}
+    
+    if check_consecutive and time_col in df.columns and time_end_col in df.columns:
+        for lag in lags:
+            mask = pd.Series(True, index=df.index)
+            
+            for step in range(1, lag + 1):
+                if forward:
+                    # Forward lag: check if future rows are consecutive
+                    # Row at i+step should start where i+(step-1) ends
+                    next_window_start = df[time_col].shift(-step)
+                    current_window_end = df[time_end_col].shift(-(step - 1))
+                    step_mask = (next_window_start == current_window_end)
+                else:
+                    # Backward lag: check if past rows are consecutive
+                    # Row at i should start where i-1 ends
+                    current_window_start = df[time_col].shift(step - 1)
+                    prev_window_end = df[time_end_col].shift(step)
+                    step_mask = (current_window_start == prev_window_end)
+                
+                mask = mask & step_mask
+            
+            consecutive_masks[lag] = mask
+    else:
+        # No time validation - all True
+        for lag in lags:
+            consecutive_masks[lag] = pd.Series(True, index=df.index)
+    
+    # Apply lags with naming based on direction
     for col in feature_cols:
         for lag in lags:
-            df[f"{col}_lag_{lag}"] = df[col].shift(lag)
-    df.dropna().reset_index(drop=True)
+            shift_amount = -lag if forward else lag
+            suffix = f"_plus_{lag}" if forward else f"_lag_{lag}"
+            
+            if check_consecutive:
+                df[f"{col}{suffix}"] = df[col].shift(shift_amount).where(consecutive_masks[lag])
+            else:
+                df[f"{col}{suffix}"] = df[col].shift(shift_amount)
     
     return df
 
@@ -45,8 +107,9 @@ def lag_features(
 def aggregate_solar_wind_3h(
     df: pd.DataFrame,
     time_col: str = 'date_and_time',
-    feature_cols: List[str] = ['by_gsm', 'bz_gsm', 'density', 'speed'],
-    target_col: str = 'kp_index'
+    feature_cols: List[str] = ['by_gsm', 'bz_gsm', 'density', 'speed', 'dynamic_pressure'],
+    target_col: str = 'kp_index',
+    min_samples: int = 3
 ) -> pd.DataFrame:
     """
     Aggregates solar wind data into 3-hour windows for Kp index prediction.
@@ -69,6 +132,8 @@ def aggregate_solar_wind_3h(
         List of feature column names to aggregate (default: ['by_gsm', 'bz_gsm', 'density', 'speed'])
     target_col : str
         Name of the Kp index column (default: 'kp_index')
+    min_samples : int
+        Minimum number of samples required in a 3H window to consider it valid
     
     Returns
     -------
@@ -84,6 +149,28 @@ def aggregate_solar_wind_3h(
     
     # Set time column as index for resampling
     df = df.set_index(time_col)
+    
+    # Count samples per 3H window to validate completeness
+    # For hourly data, we expect 3 samples per 3H window
+    sample_counts = df[feature_cols[0]].resample('3H').count()
+    
+    # # Determine minimum required samples based on data resolution
+    # if len(df) > 0:
+    #     time_diff = df.index.to_series().diff().median()
+    #     if time_diff <= pd.Timedelta(minutes=5):
+    #         # 1-minute resolution: expect ~180 samples, require at least 90 (50%)
+    #         min_samples = 90
+    #     elif time_diff <= pd.Timedelta(hours=1):
+    #         # Hourly resolution: expect 3 samples, require at least 3
+    #         min_samples = 3
+    #     else:
+    #         # Other resolutions: require at least 2 samples
+    #         min_samples = 2
+    # else:
+    #     min_samples = 3
+    
+    # Get valid windows that have sufficient data
+    valid_windows = sample_counts[sample_counts >= min_samples].index
     
     # Aggregate features over 3H windows with statistics
     df_features_3h = df[feature_cols].resample('3H').agg([
@@ -101,6 +188,9 @@ def aggregate_solar_wind_3h(
     
     # Join features with Kp
     result = df_features_3h.join(kp_3h, how='inner')
+    
+    # Filter to only valid (complete) windows
+    result = result[result.index.isin(valid_windows)]
     
     # Drop incomplete windows (NaN values)
     result = result.dropna()
@@ -521,3 +611,24 @@ def get_historical_omni_data(start_date: str, end_date: str):
     print("carita linda")
     return data
 
+
+def calculate_dynamic_pressure(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculate dynamic pressure and add it as a new column to the DataFrame.
+    Dynamic Pressure P = N * V^2
+    where N is density and V is speed.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input DataFrame with 'density' and 'speed' columns.
+    
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with an additional 'dynamic_pressure' column.
+    """
+    df = df.copy()
+    df['dynamic_pressure'] = df['density'] * (df['speed'] ** 2)
+    df['dynamic_pressure'] = df['dynamic_pressure'].astype('float32')
+    return df

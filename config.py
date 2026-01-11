@@ -31,8 +31,10 @@ class HopsworksSettings(BaseSettings):
     NOAA_PLASMA_URL: str = "https://services.swpc.noaa.gov/products/solar-wind/plasma-1-day.json"
     KP_INDEX_URL: str = "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
     
-    MODEL_NAME: str = "aurora_kp_rf_model"
-    MODEL_VERSION: int = 8
+    MODEL_3H_NAME: str = "aurora_kp_3h_model"
+    MODEL_3H_VERSION: int = 1
+    MODEL_6H_NAME: str = "aurora_kp_6h_model"
+    MODEL_6H_VERSION: int = 1
 
     def model_post_init(self, __context):
         """Runs after the model is initialized to sync environment variables."""
