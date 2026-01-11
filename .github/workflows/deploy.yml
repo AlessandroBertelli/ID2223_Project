@@ -36,7 +36,7 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           # This must match the folder where your index.md and images are
-          path: './docs'
+          path: './docs/aurora'
 
       - name: Deploy to GitHub Pages
         id: deployment
