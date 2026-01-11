@@ -53,6 +53,8 @@ We construct a historical dataset by aggregating archives from NASA and NOAA.
     * **Plasma Parameters:** Proton Density, Solar Wind Speed, Temperature.
 * **Target Variable:** Kp Index (Planetary K-index).    
 
+![Features Importance](features_importance.png)
+
 ### 2. Machine Learning Pipeline (Dual-Horizon Forecasting)
 We utilize **Random Forest Regressors** to map raw solar wind parameters to geomagnetic activity levels.
 
@@ -64,6 +66,8 @@ Because the Kp index is inherently calculated as a **3-hour average** of geomagn
 * **The 6-Hour Model (Tactical Forecast):**
     * **Goal:** Predicts the Kp index looking two windows (6 hours) ahead.
     * **Motivation:** While slightly less capable of reacting to sudden, immediate shifts than the 3h model, the 6-hour horizon is crucial for user **actionability**. It provides aurora hunters sufficient lead time to travel out of light-polluted city centers before the predicted event begins.
+
+![Training Prediction vs Real](training.png)
 
 ### 3. The Inference Pipeline
 During live operation, the system follows this logic flow:
