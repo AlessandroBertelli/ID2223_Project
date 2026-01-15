@@ -1,8 +1,8 @@
-# Actionable Aurora Forecast Dashboard
+---
+layout: default
+title: Aurora Forecast Dashboard
+---
 
-This dashboard is updated daily using satellite data and local weather forecasts.
+# Aurora Forecast Dashboard
 
-## Latest Visibility Status
-![Latest Aurora Dashboard](./assets/img/latest_dashboard.png)
-
-*Last updated: {{ site.time | date: '%B %d, %Y at %H:%M UTC' }}*
+<img src="aurora_dashboard.png" alt="Aurora Dashboard" style="max-width:100%;">
