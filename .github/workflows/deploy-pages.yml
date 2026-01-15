@@ -1,13 +1,10 @@
-
-name: deploy-aurora-pages
+name: deploy-pages
 
 on:
-  # This allows the 'aurora-forecast-daily' workflow to trigger this one
   workflow_run:
     workflows: ["aurora-forecast-daily"]
     types:
       - completed
-  # Allows manual triggering from the Actions tab
   workflow_dispatch:
 
 permissions:
@@ -21,22 +18,34 @@ concurrency:
 
 jobs:
   deploy:
+    # Only run if the previous workflow succeeded
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # CRITICAL FIX: Get the latest commit with the new index.md
+          ref: 'main'
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
+      - name: Build with Jekyll
+        uses: actions/jekyll-build-pages@v1
+        with:
+          source: ./docs/aurora
+          destination: ./_site
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # This must match the folder where your index.md and images are
-          path: './docs/aurora'
+          path: './_site'
 
       - name: Deploy to GitHub Pages
         id: deployment
